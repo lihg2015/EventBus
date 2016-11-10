@@ -35,11 +35,15 @@ final class HandlerPoster extends Handler {
     }
 
     void enqueue(Subscription subscription, Object event) {
+        //缓存获取发送对象
         PendingPost pendingPost = PendingPost.obtainPendingPost(subscription, event);
         synchronized (this) {
+            //加入到执行队列里面
             queue.enqueue(pendingPost);
+            //是否正在执行
             if (!handlerActive) {
                 handlerActive = true;
+                //发送主线程消息
                 if (!sendMessage(obtainMessage())) {
                     throw new EventBusException("Could not send handler message");
                 }
@@ -49,7 +53,7 @@ final class HandlerPoster extends Handler {
 
     @Override
     public void handleMessage(Message msg) {
-        boolean rescheduled = false;
+        boolean rescheduled = false;//是否执行超时
         try {
             long started = SystemClock.uptimeMillis();
             while (true) {

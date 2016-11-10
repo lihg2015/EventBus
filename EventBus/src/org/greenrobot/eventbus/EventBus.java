@@ -21,8 +21,11 @@ import android.util.Log;
 import java.lang.reflect.InvocationTargetException;
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.Iterator;
+import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
+import java.util.Queue;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CopyOnWriteArrayList;
@@ -180,6 +183,7 @@ public class EventBus {
                 Set<Map.Entry<Class<?>, Object>> entries = stickyEvents.entrySet();
                 for (Map.Entry<Class<?>, Object> entry : entries) {
                     Class<?> candidateEventType = entry.getKey();
+                    //如果注册事件的类型在粘性事件的缓存里面执行checkPostStickyEventToSubscription
                     if (eventType.isAssignableFrom(candidateEventType)) {
                         Object stickyEvent = entry.getValue();
                         checkPostStickyEventToSubscription(newSubscription, stickyEvent);
@@ -237,8 +241,9 @@ public class EventBus {
     /** Posts the given event to the event bus. */
     public void post(Object event) {
         PostingThreadState postingState = currentPostingThreadState.get();
-        List<Object> eventQueue = postingState.eventQueue;
-        eventQueue.add(event);
+
+        Queue<Object> eventQueue = postingState.eventQueue;
+        eventQueue.offer(event);//添加事件
 
         if (!postingState.isPosting) {
             postingState.isMainThread = Looper.getMainLooper() == Looper.myLooper();
@@ -246,9 +251,11 @@ public class EventBus {
             if (postingState.canceled) {
                 throw new EventBusException("Internal error. Abort state was not reset");
             }
+
             try {
-                while (!eventQueue.isEmpty()) {
-                    postSingleEvent(eventQueue.remove(0), postingState);
+                Object temp ;
+                while ((temp = eventQueue.poll())!=null) {
+                    postSingleEvent(temp, postingState);
                 }
             } finally {
                 postingState.isPosting = false;
@@ -446,7 +453,7 @@ public class EventBus {
                 Class<?> clazz = eventClass;
                 while (clazz != null) {
                     eventTypes.add(clazz);
-                    addInterfaces(eventTypes, clazz.getInterfaces());
+                    addInterfaces(eventTypes, clazz.getInterfaces());//添加所有父类接口类型
                     clazz = clazz.getSuperclass();
                 }
                 eventTypesCache.put(eventClass, eventTypes);
@@ -518,7 +525,8 @@ public class EventBus {
 
     /** For ThreadLocal, much faster to set (and get multiple values). */
     final static class PostingThreadState {
-        final List<Object> eventQueue = new ArrayList<Object>();
+        //事件对象
+        final Queue<Object> eventQueue = new LinkedList<>();
         boolean isPosting;
         boolean isMainThread;
         Subscription subscription;

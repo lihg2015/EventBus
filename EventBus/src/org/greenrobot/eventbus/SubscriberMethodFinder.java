@@ -34,39 +34,49 @@ class SubscriberMethodFinder {
      */
     private static final int BRIDGE = 0x40;
     private static final int SYNTHETIC = 0x1000;
-
+    //忽略方法
     private static final int MODIFIERS_IGNORE = Modifier.ABSTRACT | Modifier.STATIC | BRIDGE | SYNTHETIC;
+    //订阅者的class为key，所有的订阅方法对象集合为value的缓存
     private static final Map<Class<?>, List<SubscriberMethod>> METHOD_CACHE = new ConcurrentHashMap<>();
-
+    //索引集合，暂时不关心他的结构
     private List<SubscriberInfoIndex> subscriberInfoIndexes;
+    //是否方法严格校验
     private final boolean strictMethodVerification;
+    //是否忽略索引
     private final boolean ignoreGeneratedIndex;
-
+    //对象池个数
     private static final int POOL_SIZE = 4;
+    //对象池
     private static final FindState[] FIND_STATE_POOL = new FindState[POOL_SIZE];
-
+    //默认构造函数
     SubscriberMethodFinder(List<SubscriberInfoIndex> subscriberInfoIndexes, boolean strictMethodVerification,
                            boolean ignoreGeneratedIndex) {
         this.subscriberInfoIndexes = subscriberInfoIndexes;
         this.strictMethodVerification = strictMethodVerification;
         this.ignoreGeneratedIndex = ignoreGeneratedIndex;
     }
-
+    //核心方法:
     List<SubscriberMethod> findSubscriberMethods(Class<?> subscriberClass) {
-        List<SubscriberMethod> subscriberMethods = METHOD_CACHE.get(subscriberClass);
+        //从缓存中查找
+        List<SubscriberMethod> subscriberMethods = null;//METHOD_CACHE.get(subscriberClass);
         if (subscriberMethods != null) {
             return subscriberMethods;
         }
-
+        //从缓存中没有找到
         if (ignoreGeneratedIndex) {
+            //忽略索引
             subscriberMethods = findUsingReflection(subscriberClass);
         } else {
+            //使用索引
             subscriberMethods = findUsingInfo(subscriberClass);
         }
+
         if (subscriberMethods.isEmpty()) {
+            //没有找到订阅方法　抛出异常
             throw new EventBusException("Subscriber " + subscriberClass
                     + " and its super classes have no public methods with the @Subscribe annotation");
         } else {
+            //增加到缓存并返回集合
             METHOD_CACHE.put(subscriberClass, subscriberMethods);
             return subscriberMethods;
         }
@@ -138,7 +148,9 @@ class SubscriberMethodFinder {
     }
 
     private List<SubscriberMethod> findUsingReflection(Class<?> subscriberClass) {
+        //获取查找对象
         FindState findState = prepareFindState();
+        //初始化
         findState.initForSubscriber(subscriberClass);
         while (findState.clazz != null) {
             findUsingReflectionInSingleClass(findState);
@@ -189,9 +201,13 @@ class SubscriberMethodFinder {
     }
 
     static class FindState {
+        //所有订阅方法的集合
         final List<SubscriberMethod> subscriberMethods = new ArrayList<>();
+        //事件类型是已经存在的标识map
         final Map<Class, Object> anyMethodByEventType = new HashMap<>();
+        //方法key和方法所属的类组成的标识map
         final Map<String, Class> subscriberClassByMethodKey = new HashMap<>();
+        //产生方法key的builder
         final StringBuilder methodKeyBuilder = new StringBuilder(128);
 
         Class<?> subscriberClass;
@@ -219,11 +235,15 @@ class SubscriberMethodFinder {
         boolean checkAdd(Method method, Class<?> eventType) {
             // 2 level check: 1st level with event type only (fast), 2nd level with complete signature when required.
             // Usually a subscriber doesn't have methods listening to the same event type.
+            //当前事件类型和方法是否已经添加了
             Object existing = anyMethodByEventType.put(eventType, method);
             if (existing == null) {
+                //没有添加,返回true
                 return true;
             } else {
+                //已经添加了,判断前一个添加的标识对象是不是方法对象
                 if (existing instanceof Method) {
+                    //是否已经添加了
                     if (!checkAddWithMethodSignature((Method) existing, eventType)) {
                         // Paranoia check
                         throw new IllegalStateException();
